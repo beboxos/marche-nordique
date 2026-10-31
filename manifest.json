@@ -1,0 +1,19 @@
+{
+  "name": "Guide Marche Nordique - Sologne",
+  "short_name": "Marche Nordique",
+  "description": "Guidage GPS et vocal Bluetooth sur les 23 circuits de Marche Nordique en Sologne & Loir-et-Cher",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#15803d",
+  "lang": "fr-FR",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

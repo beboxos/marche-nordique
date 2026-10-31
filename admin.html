@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Admin – Guide Marche Nordique</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="stylesheet" href="vendor/leaflet.css" />
+  <style>
+    :root { --bg:#0f172a; --panel:#1e293b; --line:#334155; --text:#e2e8f0; --muted:#94a3b8; --green:#16a34a; --blue:#2563eb; --red:#dc2626; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, sans-serif; }
+    h1 { font-size:1.1rem; margin:0; }
+    h2 { font-size:.95rem; margin:14px 0 6px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+    button, input, select, textarea { font:inherit; color:var(--text); background:#0b1220; border:1px solid var(--line); border-radius:6px; padding:6px 9px; }
+    textarea { width:100%; min-height:60px; }
+    button { cursor:pointer; background:var(--panel); }
+    button:hover { border-color:var(--muted); }
+    button.primary { background:var(--green); border-color:var(--green); color:#fff; }
+    button.danger { background:transparent; color:#f87171; border-color:#7f1d1d; }
+    button.on { background:var(--blue); border-color:var(--blue); color:#fff; }
+    label { display:block; font-size:.78rem; color:var(--muted); margin:8px 0 2px; }
+    input[type=text], input[type=number], input[type=email], input[type=password], select { width:100%; }
+    .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .row > * { flex:0 0 auto; }
+    .hidden { display:none !important; }
+    #login { max-width:340px; margin:12vh auto; padding:20px; background:var(--panel); border-radius:10px; }
+    #app { display:grid; grid-template-columns:340px 1fr 360px; height:100%; }
+    #left, #right { overflow:auto; padding:12px; background:var(--panel); }
+    #left { border-right:1px solid var(--line); }
+    #right { border-left:1px solid var(--line); }
+    #map { height:100%; min-height:300px; }
+    .item { padding:8px; border:1px solid var(--line); border-radius:6px; margin:6px 0; cursor:pointer; }
+    .item.sel { border-color:var(--green); background:#052e16; }
+    .item small { color:var(--muted); display:block; }
+    .tag { font-size:.7rem; padding:1px 6px; border-radius:99px; background:#7c2d12; margin-left:6px; }
+    .wp { border:1px solid var(--line); border-radius:6px; padding:6px; margin:6px 0; }
+    .wp .row { margin-bottom:4px; }
+    #msg { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); background:#020617; border:1px solid var(--line); padding:8px 14px; border-radius:8px; z-index:2000; }
+    #msg.err { border-color:#ef4444; color:#fecaca; }
+    .vtx { width:10px; height:10px; border-radius:50%; background:#fff; border:2px solid #0284c7; }
+    .corner { width:18px; height:18px; border-radius:4px; background:#f59e0b; border:2px solid #fff; }
+    @media (max-width: 1000px) {
+      #app { grid-template-columns:1fr; grid-template-rows:auto 55vh auto; height:auto; }
+      html, body { height:auto; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Connexion -->
+  <div id="login">
+    <h1>🥾 Admin – Marche Nordique</h1>
+    <label for="email">E-mail</label>
+    <input id="email" type="email" autocomplete="username" />
+    <label for="password">Mot de passe</label>
+    <input id="password" type="password" autocomplete="current-password" />
+    <div class="row" style="margin-top:12px"><button class="primary" id="btnLogin">Se connecter</button></div>
+    <p id="loginErr" style="color:#f87171"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <!-- Liste -->
+    <aside id="left">
+      <div class="row" style="justify-content:space-between">
+        <h1>Circuits</h1>
+        <button id="btnLogout">Déconnexion</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="btnNew">➕ Nouvelle marche (GPX)</button>
+        <input id="newGpx" type="file" accept=".gpx" class="hidden" />
+      </div>
+      <input id="search" type="text" placeholder="Rechercher…" style="margin-top:8px" />
+      <div id="list"></div>
+      <div id="seedBox" class="hidden">
+        <h2>Première utilisation</h2>
+        <p style="color:var(--muted)">La base est vide : importer les 23 circuits actuels de l'appli.</p>
+        <button class="primary" id="btnSeed">Importer les 23 circuits</button>
+      </div>
+    </aside>
+
+    <!-- Carte -->
+    <main>
+      <div id="map"></div>
+    </main>
+
+    <!-- Éditeur -->
+    <aside id="right">
+      <div id="empty" style="color:var(--muted)">Choisissez un circuit à gauche ou créez une nouvelle marche.</div>
+      <div id="editor" class="hidden">
+        <div class="row" style="justify-content:space-between">
+          <h1 id="edTitle"></h1>
+          <button class="primary" id="btnSave">💾 Enregistrer</button>
+        </div>
+
+        <h2>Infos</h2>
+        <label>Nom</label><input id="fName" type="text" />
+        <div class="row">
+          <div style="flex:1"><label>Commune</label><input id="fCommune" type="text" /></div>
+          <div style="width:70px"><label>N°</label><input id="fPosition" type="number" /></div>
+        </div>
+        <div class="row">
+          <div style="flex:1"><label>Distance (km)</label><input id="fDist" type="number" step="0.1" /></div>
+          <div style="flex:1"><label>Durée</label><input id="fDuration" type="text" placeholder="2h10" /></div>
+          <div style="width:60px"><label>Couleur</label><input id="fColor" type="color" style="padding:0;height:32px" /></div>
+        </div>
+        <label>Lieu de départ</label><input id="fStart" type="text" />
+        <label>Variante (texte)</label><input id="fVariant" type="text" />
+        <label>Notes</label><textarea id="fNotes"></textarea>
+        <label><input id="fPublished" type="checkbox" style="width:auto" /> Visible par les marcheurs</label>
+
+        <h2>Tracé</h2>
+        <div class="row">
+          <button id="btnReplaceGpx">📂 Remplacer par un GPX</button>
+          <input id="replaceGpx" type="file" accept=".gpx" class="hidden" />
+          <button id="btnAddPoint">✏️ Ajouter des points</button>
+          <button id="btnUndoPoint">↩️</button>
+        </div>
+        <div id="trackInfo" style="color:var(--muted);margin:6px 0"></div>
+        <div class="row">
+          <label style="margin:0">Simplifier (m)</label>
+          <input id="simpTol" type="number" value="3" style="width:60px" />
+          <button id="btnSimplify">Simplifier</button>
+        </div>
+        <label>Décaler tout le tracé</label>
+        <div class="row" id="nudgeTrack"></div>
+
+        <h2>Scan du PDF (calage)</h2>
+        <div class="row">
+          <select id="scanSelect" style="flex:1"></select>
+          <button id="btnUploadScan">📤 Autre image</button>
+          <input id="scanFile" type="file" accept="image/*" class="hidden" />
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="btnScanToggle">👁️ Afficher</button>
+          <input id="scanOpacity" type="range" min="10" max="100" value="60" style="flex:1" />
+        </div>
+        <p style="color:var(--muted);margin:4px 0">Glissez les carrés orange (coins Sud-Ouest et Nord-Est) pour faire coller le scan à la carte.</p>
+        <label>Décaler tout le scan</label>
+        <div class="row" id="nudgeScan"></div>
+
+        <h2>Annonces vocales / repères</h2>
+        <div class="row"><button id="btnAddWp">🔊 Ajouter un repère (clic carte)</button></div>
+        <div id="wpList"></div>
+
+        <h2>Danger</h2>
+        <button class="danger" id="btnDelete">🗑️ Supprimer ce circuit</button>
+      </div>
+    </aside>
+  </div>
+  <div id="msg" class="hidden"></div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script src="circuits-data.js"></script>
+  <script src="supabase-config.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const cfg = window.SUPABASE_CONFIG || {};
+    const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+    const WP_TYPES = { start: '🚩 Départ', 'turn-left': '↰ Gauche', 'turn-right': '↱ Droite', straight: '↑ Tout droit', pause: '⏸️ Pause' };
+
+    let rows = [];          // [{id, position, published, data}]
+    let cur = null;         // circuit en cours d'édition : {id, isNew, position, published, data}
+    let dirty = false;
+    let mode = 'view';      // 'view' | 'addPoint' | 'addWp'
+    let scanVisible = false;
+
+    // ---------- Utilitaires ----------
+    function toast(text, isErr) {
+      const m = $('msg');
+      m.textContent = text;
+      m.className = isErr ? 'err' : '';
+      clearTimeout(toast.t);
+      toast.t = setTimeout(() => m.classList.add('hidden'), isErr ? 6000 : 2500);
+    }
+    function haversine(a, b) {
+      const R = 6371000, rad = Math.PI / 180;
+      const dLat = (b[0] - a[0]) * rad, dLng = (b[1] - a[1]) * rad;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+    function trackLengthKm(t) {
+      let m = 0;
+      for (let i = 1; i < t.length; i++) m += haversine(t[i - 1], t[i]);
+      return m / 1000;
+    }
+    function slug(s) {
+      return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+    function shift(pt, dNorthM, dEastM) {
+      return [pt[0] + dNorthM / 111320, pt[1] + dEastM / (111320 * Math.cos(pt[0] * Math.PI / 180))];
+    }
+    function setDirty(v = true) { dirty = v; $('btnSave').textContent = v ? '💾 Enregistrer *' : '💾 Enregistrer'; }
+    window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+    function parseGpx(text) {
+      const xml = new DOMParser().parseFromString(text, 'text/xml');
+      if (xml.querySelector('parsererror')) throw new Error('Fichier GPX illisible');
+      let els = Array.from(xml.querySelectorAll('trkpt'));
+      if (els.length < 2) els = Array.from(xml.querySelectorAll('rtept'));
+      const pts = els.map((e) => [parseFloat(e.getAttribute('lat')), parseFloat(e.getAttribute('lon'))])
+        .filter((p) => !isNaN(p[0]) && !isNaN(p[1]));
+      if (pts.length < 2) throw new Error('Aucun tracé trouvé dans ce GPX');
+      const name = (xml.querySelector('trk > name, metadata > name, rte > name') || {}).textContent || '';
+      return { pts, name: name.trim() };
+    }
+    // Douglas-Peucker, tolérance en mètres
+    function simplify(pts, tolM) {
+      if (pts.length < 3) return pts;
+      const keep = new Uint8Array(pts.length);
+      keep[0] = keep[pts.length - 1] = 1;
+      const stack = [[0, pts.length - 1]];
+      const kx = 111320 * Math.cos(pts[0][0] * Math.PI / 180), ky = 111320;
+      const dist = (p, a, b) => {
+        const px = (p[1] - a[1]) * kx, py = (p[0] - a[0]) * ky, bx = (b[1] - a[1]) * kx, by = (b[0] - a[0]) * ky;
+        const l2 = bx * bx + by * by;
+        const t = l2 ? Math.max(0, Math.min(1, (px * bx + py * by) / l2)) : 0;
+        return Math.hypot(px - t * bx, py - t * by);
+      };
+      while (stack.length) {
+        const [s, e] = stack.pop();
+        let max = 0, idx = -1;
+        for (let i = s + 1; i < e; i++) { const d = dist(pts[i], pts[s], pts[e]); if (d > max) { max = d; idx = i; } }
+        if (max > tolM) { keep[idx] = 1; stack.push([s, idx], [idx, e]); }
+      }
+      return pts.filter((_, i) => keep[i]);
+    }
+
+    // ---------- Carte ----------
+    const map = L.map('map').setView([47.5, 1.55], 10);
+    const layers = {
+      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }),
+      topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '© OpenTopoMap' }),
+      sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri' })
+    };
+    layers.osm.addTo(map);
+    L.control.layers({ 'Plan': layers.osm, 'Topo': layers.topo, 'Satellite': layers.sat }).addTo(map);
+
+    const g = { track: L.layerGroup().addTo(map), wp: L.layerGroup().addTo(map), scan: L.layerGroup().addTo(map) };
+    let overlay = null;
+
+    function vertexIcon() { return L.divIcon({ className: '', html: '<div class="vtx"></div>', iconSize: [10, 10], iconAnchor: [5, 5] }); }
+    function cornerIcon() { return L.divIcon({ className: '', html: '<div class="corner"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }); }
+    function wpIcon(i) { return L.divIcon({ className: '', html: `<div style="background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-weight:700;border:2px solid #fff">${i + 1}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }); }
+
+    function drawTrack() {
+      g.track.clearLayers();
+      if (!cur) return;
+      const t = cur.data.track || [];
+      if (t.length > 1) L.polyline(t, { color: cur.data.color || '#0284c7', weight: 4, opacity: .9 }).addTo(g.track);
+      const vt = cur.data.variantTrack;
+      if (vt && vt.length > 1) L.polyline(vt, { color: '#a855f7', weight: 3, dashArray: '6 6' }).addTo(g.track);
+      $('trackInfo').textContent = t.length
+        ? `${t.length} points • ${trackLengthKm(t).toFixed(2)} km${t.length > 600 ? ' • trop de points pour les déplacer un par un : cliquez « Simplifier »' : ''}`
+        : 'Aucun tracé : importez un GPX.';
+      if (t.length && t.length <= 600) {
+        t.forEach((p, i) => {
+          const m = L.marker(p, { icon: vertexIcon(), draggable: true }).addTo(g.track);
+          m.on('drag', () => { t[i] = [m.getLatLng().lat, m.getLatLng().lng]; });
+          m.on('dragend', () => { setDirty(); drawTrack(); });
+          m.on('contextmenu dblclick', (e) => { L.DomEvent.stop(e); if (t.length > 2) { t.splice(i, 1); setDirty(); drawTrack(); } });
+        });
+      }
+    }
+    function drawWaypoints() {
+      g.wp.clearLayers();
+      if (!cur) return;
+      (cur.data.waypoints || []).forEach((w, i) => {
+        const m = L.marker([w.lat, w.lng], { icon: wpIcon(i), draggable: true, title: w.title }).addTo(g.wp);
+        m.on('dragend', () => { w.lat = +m.getLatLng().lat.toFixed(6); w.lng = +m.getLatLng().lng.toFixed(6); setDirty(); renderWpList(); });
+      });
+    }
+    function scanUrl(p) { return p; }
+    function drawScan() {
+      g.scan.clearLayers();
+      overlay = null;
+      if (!cur || !scanVisible || !cur.data.scanImage || !cur.data.scanBounds) return;
+      const [sw, ne] = cur.data.scanBounds;
+      overlay = L.imageOverlay(scanUrl(cur.data.scanImage), [sw, ne], { opacity: $('scanOpacity').value / 100 }).addTo(g.scan);
+      const mk = (idx) => {
+        const m = L.marker(cur.data.scanBounds[idx], { icon: cornerIcon(), draggable: true, zIndexOffset: 1000 }).addTo(g.scan);
+        m.on('drag', () => {
+          cur.data.scanBounds[idx] = [m.getLatLng().lat, m.getLatLng().lng];
+          overlay.setBounds(cur.data.scanBounds);
+        });
+        m.on('dragend', () => setDirty());
+      };
+      mk(0); mk(1);
+    }
+    $('scanOpacity').addEventListener('input', () => overlay && overlay.setOpacity($('scanOpacity').value / 100));
+
+    map.on('click', (e) => {
+      if (!cur) return;
+      const lat = +e.latlng.lat.toFixed(6), lng = +e.latlng.lng.toFixed(6);
+      if (mode === 'addPoint') {
+        (cur.data.track = cur.data.track || []).push([lat, lng]);
+        cur.data.hasFullTrack = cur.data.track.length > 1;
+        setDirty(); drawTrack();
+      } else if (mode === 'addWp') {
+        (cur.data.waypoints = cur.data.waypoints || []).push({ lat, lng, type: 'turn-right', title: 'Nouveau repère', voice: 'Attention, à 10 mètres, tournez à droite.' });
+        setDirty(); drawWaypoints(); renderWpList(); setMode('view');
+      }
+    });
+    function setMode(m) {
+      mode = mode === m ? 'view' : m;
+      $('btnAddPoint').classList.toggle('on', mode === 'addPoint');
+      $('btnAddWp').classList.toggle('on', mode === 'addWp');
+      map.getContainer().style.cursor = mode === 'view' ? '' : 'crosshair';
+    }
+
+    // ---------- Liste ----------
+    function renderList() {
+      const q = $('search').value.toLowerCase().trim();
+      $('list').innerHTML = '';
+      rows.filter((r) => !q || (r.data.name + ' ' + r.data.commune).toLowerCase().includes(q)).forEach((r) => {
+        const d = document.createElement('div');
+        d.className = 'item' + (cur && cur.id === r.id ? ' sel' : '');
+        const n = (r.data.track || []).length;
+        d.innerHTML = `<b></b>${r.published ? '' : '<span class="tag">masqué</span>'}<small></small>`;
+        d.querySelector('b').textContent = `${r.position}. ${r.data.name}`;
+        d.querySelector('small').textContent = `${r.data.distanceKm || '?'} km • ${n} points${n < 40 ? ' • tracé approximatif' : ''}`;
+        d.onclick = () => openCircuit(r.id);
+        $('list').appendChild(d);
+      });
+      $('seedBox').classList.toggle('hidden', rows.length > 0);
+    }
+    $('search').addEventListener('input', renderList);
+
+    async function loadRows() {
+      const { data, error } = await sb.from('circuits').select('*').order('position');
+      if (error) return toast('Chargement impossible : ' + error.message, true);
+      rows = data;
+      renderList();
+    }
+
+    // ---------- Édition ----------
+    function openCircuit(id) {
+      if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
+      const r = rows.find((x) => x.id === id);
+      cur = { id: r.id, isNew: false, position: r.position, published: r.published, data: JSON.parse(JSON.stringify(r.data)) };
+      afterOpen(true);
+    }
+    function afterOpen(fit) {
+      setDirty(false); setMode('view');
+      $('empty').classList.add('hidden'); $('editor').classList.remove('hidden');
+      const d = cur.data;
+      $('edTitle').textContent = d.name || 'Nouvelle marche';
+      $('fName').value = d.name || ''; $('fCommune').value = d.commune || '';
+      $('fPosition').value = cur.position; $('fDist').value = d.distanceKm || '';
+      $('fDuration').value = d.duration || ''; $('fColor').value = d.color || '#0284c7';
+      $('fStart').value = d.startName || ''; $('fVariant').value = d.variantText || '';
+      $('fNotes').value = d.notes || ''; $('fPublished').checked = cur.published;
+      fillScanSelect();
+      scanVisible = !!(d.scanImage && d.scanBounds);
+      $('btnScanToggle').textContent = scanVisible ? '🙈 Masquer' : '👁️ Afficher';
+      drawTrack(); drawWaypoints(); drawScan(); renderWpList(); renderList();
+      if (fit) {
+        const t = d.track || [];
+        if (t.length) map.fitBounds(L.latLngBounds(t).pad(.15));
+        else if (d.startCoords) map.setView(d.startCoords, 14);
+      }
+    }
+    function bindField(id, fn) { $(id).addEventListener('input', () => { if (!cur) return; fn($(id)); setDirty(); }); }
+    bindField('fName', (e) => { cur.data.name = e.value; $('edTitle').textContent = e.value; });
+    bindField('fCommune', (e) => cur.data.commune = e.value);
+    bindField('fPosition', (e) => cur.position = parseInt(e.value, 10) || 0);
+    bindField('fDist', (e) => cur.data.distanceKm = parseFloat(e.value) || 0);
+    bindField('fDuration', (e) => cur.data.duration = e.value);
+    bindField('fColor', (e) => { cur.data.color = e.value; drawTrack(); });
+    bindField('fStart', (e) => cur.data.startName = e.value);
+    bindField('fVariant', (e) => cur.data.variantText = e.value);
+    bindField('fNotes', (e) => cur.data.notes = e.value);
+    $('fPublished').addEventListener('change', () => { if (cur) { cur.published = $('fPublished').checked; setDirty(); } });
+
+    function applyTrack(pts, opts = {}) {
+      cur.data.track = pts;
+      cur.data.hasFullTrack = pts.length > 1;
+      cur.data.startCoords = pts[0];
+      cur.data.distanceKm = +trackLengthKm(pts).toFixed(1);
+      $('fDist').value = cur.data.distanceKm;
+      setDirty(); drawTrack();
+      map.fitBounds(L.latLngBounds(pts).pad(.15));
+    }
+
+    // Nouvelle marche
+    $('btnNew').onclick = () => $('newGpx').click();
+    $('newGpx').onchange = async (e) => {
+      const f = e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      try {
+        if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
+        const { pts, name } = parseGpx(await f.text());
+        const title = name || f.name.replace(/\.gpx$/i, '');
+        let id = slug(title) || 'marche', n = 2;
+        while (rows.some((r) => r.id === id)) id = slug(title) + '-' + n++;
+        const color = '#' + ['0284c7', '16a34a', 'c2410c', '7c3aed', 'be123c', '0f766e'][rows.length % 6];
+        cur = {
+          id, isNew: true, position: Math.max(0, ...rows.map((r) => r.position)) + 1, published: false,
+          data: { name: title, commune: '', duration: '', startName: '', notes: '', variantText: '', color, waypoints: [], track: [], hasFullTrack: true }
+        };
+        cur.gpxFile = f;
+        afterOpen(false);
+        applyTrack(pts);
+        toast(`GPX importé (${pts.length} points). Complétez les infos puis enregistrez.`);
+      } catch (err) { toast(err.message, true); }
+    };
+
+    // Remplacer le tracé
+    $('btnReplaceGpx').onclick = () => $('replaceGpx').click();
+    $('replaceGpx').onchange = async (e) => {
+      const f = e.target.files[0]; e.target.value = '';
+      if (!f || !cur) return;
+      try {
+        const { pts } = parseGpx(await f.text());
+        if (!confirm(`Remplacer le tracé actuel par ${pts.length} points ?`)) return;
+        cur.gpxFile = f;
+        applyTrack(pts);
+      } catch (err) { toast(err.message, true); }
+    };
+    $('btnAddPoint').onclick = () => setMode('addPoint');
+    $('btnUndoPoint').onclick = () => { if (cur && cur.data.track && cur.data.track.length > 2) { cur.data.track.pop(); setDirty(); drawTrack(); } };
+    $('btnSimplify').onclick = () => {
+      if (!cur || !(cur.data.track || []).length) return;
+      const before = cur.data.track.length;
+      cur.data.track = simplify(cur.data.track, parseFloat($('simpTol').value) || 3);
+      setDirty(); drawTrack();
+      toast(`${before} → ${cur.data.track.length} points`);
+    };
+
+    // Boutons de décalage
+    function buildNudge(boxId, apply) {
+      const box = $(boxId);
+      [['⬆️', 1, 0], ['⬇️', -1, 0], ['⬅️', 0, -1], ['➡️', 0, 1]].forEach(([label, n, e]) => {
+        [2, 10].forEach((m) => {
+          const b = document.createElement('button');
+          b.textContent = `${label} ${m} m`;
+          b.onclick = () => { if (cur) { apply(n * m, e * m); setDirty(); } };
+          box.appendChild(b);
+        });
+      });
+    }
+    buildNudge('nudgeTrack', (dn, de) => {
+      cur.data.track = (cur.data.track || []).map((p) => shift(p, dn, de));
+      cur.data.startCoords = (cur.data.track || [])[0] || cur.data.startCoords;
+      drawTrack();
+    });
+    buildNudge('nudgeScan', (dn, de) => {
+      if (!cur.data.scanBounds) return;
+      cur.data.scanBounds = cur.data.scanBounds.map((p) => shift(p, dn, de));
+      drawScan();
+    });
+
+    // Scan
+    function fillScanSelect() {
+      const sel = $('scanSelect');
+      sel.innerHTML = '<option value="">— aucun scan —</option>';
+      const known = new Set();
+      rows.forEach((r) => { if (r.data.scanImage && !known.has(r.data.scanImage)) { known.add(r.data.scanImage); } });
+      if (cur.data.scanImage) known.add(cur.data.scanImage);
+      known.forEach((u) => {
+        const o = document.createElement('option');
+        o.value = u; o.textContent = u.split('/').pop();
+        if (u === cur.data.scanImage) o.selected = true;
+        sel.appendChild(o);
+      });
+    }
+    function defaultBounds() {
+      const c = map.getCenter();
+      return [[c.lat - 0.015, c.lng - 0.025], [c.lat + 0.015, c.lng + 0.025]];
+    }
+    $('scanSelect').onchange = () => {
+      if (!cur) return;
+      cur.data.scanImage = $('scanSelect').value || undefined;
+      if (cur.data.scanImage && !cur.data.scanBounds) cur.data.scanBounds = defaultBounds();
+      scanVisible = !!cur.data.scanImage;
+      $('btnScanToggle').textContent = scanVisible ? '🙈 Masquer' : '👁️ Afficher';
+      setDirty(); drawScan();
+    };
+    $('btnScanToggle').onclick = () => {
+      if (!cur) return;
+      scanVisible = !scanVisible;
+      $('btnScanToggle').textContent = scanVisible ? '🙈 Masquer' : '👁️ Afficher';
+      drawScan();
+    };
+    $('btnUploadScan').onclick = () => $('scanFile').click();
+    $('scanFile').onchange = async (e) => {
+      const f = e.target.files[0]; e.target.value = '';
+      if (!f || !cur) return;
+      const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${cur.id}-${Date.now()}.${ext}`;
+      const { error } = await sb.storage.from('scans').upload(path, f, { contentType: f.type, upsert: true });
+      if (error) return toast('Envoi du scan impossible : ' + error.message, true);
+      cur.data.scanImage = sb.storage.from('scans').getPublicUrl(path).data.publicUrl;
+      if (!cur.data.scanBounds) cur.data.scanBounds = defaultBounds();
+      scanVisible = true;
+      fillScanSelect(); $('btnScanToggle').textContent = '🙈 Masquer';
+      setDirty(); drawScan();
+      toast('Scan envoyé. Calez-le sur la carte puis enregistrez.');
+    };
+
+    // Repères
+    function renderWpList() {
+      const box = $('wpList');
+      box.innerHTML = '';
+      if (!cur) return;
+      (cur.data.waypoints || []).forEach((w, i) => {
+        const d = document.createElement('div');
+        d.className = 'wp';
+        const opts = Object.entries(WP_TYPES).map(([k, v]) => `<option value="${k}"${k === w.type ? ' selected' : ''}>${v}</option>`).join('');
+        d.innerHTML = `<div class="row"><b>${i + 1}</b><select style="flex:1">${opts}</select><button title="Centrer">🎯</button><button class="danger" title="Supprimer">✕</button></div><input type="text" placeholder="Titre" /><textarea placeholder="Phrase annoncée dans l'oreillette"></textarea>`;
+        const [sel, btnC, btnD] = d.querySelectorAll('select, button');
+        const [inp] = d.querySelectorAll('input'), ta = d.querySelector('textarea');
+        inp.value = w.title || ''; ta.value = w.voice || '';
+        sel.onchange = () => { w.type = sel.value; setDirty(); };
+        inp.oninput = () => { w.title = inp.value; setDirty(); };
+        ta.oninput = () => { w.voice = ta.value; setDirty(); };
+        btnC.onclick = () => map.setView([w.lat, w.lng], Math.max(map.getZoom(), 16));
+        btnD.onclick = () => { if (confirm('Supprimer ce repère ?')) { cur.data.waypoints.splice(i, 1); setDirty(); drawWaypoints(); renderWpList(); } };
+        box.appendChild(d);
+      });
+    }
+    $('btnAddWp').onclick = () => setMode('addWp');
+
+    // Enregistrer / supprimer
+    $('btnSave').onclick = async () => {
+      if (!cur) return;
+      const d = cur.data;
+      if (!d.name || !d.name.trim()) return toast('Le nom est obligatoire.', true);
+      if (!(d.track || []).length) return toast('Importez un tracé GPX avant d\'enregistrer.', true);
+      d.hasFullTrack = d.track.length > 1;
+      const payload = { id: cur.id, position: cur.position, published: cur.published, data: d };
+      const { error } = await sb.from('circuits').upsert(payload);
+      if (error) return toast('Échec : ' + error.message, true);
+      if (cur.gpxFile) {
+        const up = await sb.storage.from('gpx').upload(`${cur.id}.gpx`, cur.gpxFile, { contentType: 'application/gpx+xml', upsert: true });
+        if (up.error) toast('Circuit enregistré, mais GPX d\'origine non archivé : ' + up.error.message, true);
+        cur.gpxFile = null;
+      }
+      cur.isNew = false;
+      await loadRows();
+      setDirty(false);
+      toast('Enregistré ✔ (visible tout de suite sur le site)');
+    };
+    $('btnDelete').onclick = async () => {
+      if (!cur || cur.isNew) { cur = null; $('editor').classList.add('hidden'); $('empty').classList.remove('hidden'); g.track.clearLayers(); g.wp.clearLayers(); g.scan.clearLayers(); setDirty(false); return; }
+      if (!confirm(`Supprimer définitivement « ${cur.data.name} » ?`)) return;
+      const { error } = await sb.from('circuits').delete().eq('id', cur.id);
+      if (error) return toast('Échec : ' + error.message, true);
+      cur = null; setDirty(false);
+      $('editor').classList.add('hidden'); $('empty').classList.remove('hidden');
+      g.track.clearLayers(); g.wp.clearLayers(); g.scan.clearLayers();
+      await loadRows();
+      toast('Circuit supprimé');
+    };
+
+    // Import initial des 23 circuits
+    $('btnSeed').onclick = async () => {
+      const src = window.DEFAULT_CIRCUITS || [];
+      if (!src.length) return toast('Base embarquée introuvable.', true);
+      const payload = src.map((c, i) => { const { id, ...data } = c; return { id, position: c.page || i + 1, published: true, data }; });
+      const { error } = await sb.from('circuits').upsert(payload);
+      if (error) return toast('Échec : ' + error.message, true);
+      await loadRows();
+      toast(`${payload.length} circuits importés`);
+    };
+
+    // ---------- Connexion ----------
+    async function enter(session) {
+      const { data } = await sb.from('circuit_admins').select('user_id').eq('user_id', session.user.id);
+      if (!data || !data.length) {
+        await sb.auth.signOut();
+        $('loginErr').textContent = 'Ce compte n\'est pas autorisé à modifier les circuits.';
+        return;
+      }
+      $('login').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      map.invalidateSize();
+      await loadRows();
+    }
+    $('btnLogin').onclick = async () => {
+      $('loginErr').textContent = '';
+      const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+      if (error) { $('loginErr').textContent = 'Connexion refusée : ' + error.message; return; }
+      enter(data.session);
+    };
+    $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnLogin').click(); });
+    $('btnLogout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+    if (!cfg.url || !cfg.anonKey) {
+      $('loginErr').textContent = 'Configuration Supabase manquante (supabase-config.js).';
+    } else {
+      sb.auth.getSession().then(({ data }) => { if (data.session) enter(data.session); });
+    }
+  </script>
+</body>
+</html>

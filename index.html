@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#15803d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Guide Marche Nordique – Sologne</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="stylesheet" href="vendor/leaflet.css" />
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --bg-glass: rgba(15, 23, 42, 0.90);
+      --primary: #16a34a;
+      --primary-light: #4ade80;
+      --accent: #f59e0b;
+      --blue: #2563eb;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.2);
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+    }
+
+    /* Layout principal */
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #map {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #e2e8f0;
+    }
+
+    /* Barre supérieure flottante */
+    .top-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .top-bar > * {
+      pointer-events: auto;
+    }
+
+    .header-card {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand img {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 0.98rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-sub {
+      font-size: 0.75rem;
+      color: var(--primary-light);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: #334155;
+    }
+
+    .btn.active, .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary-light);
+      color: #fff;
+    }
+
+    .btn-accent {
+      background: var(--accent);
+      border-color: #fbbf24;
+      color: #0f172a;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      border-color: #f87171;
+      color: #fff;
+    }
+
+    .btn-icon {
+      padding: 8px 10px;
+      font-size: 1rem;
+    }
+
+    /* Bandeau de navigation vocale temps réel */
+    .nav-banner {
+      background: linear-gradient(135deg, rgba(22, 101, 52, 0.96), rgba(15, 23, 42, 0.96));
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(74, 222, 128, 0.4);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    .nav-banner.visible {
+      display: flex;
+    }
+
+    .nav-banner.off-track {
+      background: linear-gradient(135deg, rgba(185, 28, 28, 0.96), rgba(15, 23, 42, 0.96));
+      border-color: #f87171;
+    }
+
+    .nav-dir-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.55rem;
+      flex-shrink: 0;
+    }
+
+    .nav-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .nav-distance {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #4ade80;
+    }
+
+    .nav-instruction {
+      font-size: 0.88rem;
+      color: #f1f5f9;
+      line-height: 1.3;
+      margin-top: 2px;
+    }
+
+    /* Contrôles flottants à droite de la carte */
+    .map-QuickControls {
+      position: absolute;
+      right: 10px;
+      top: 150px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .fab {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--bg-glass);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+
+    .fab.active {
+      background: var(--primary);
+      border-color: var(--primary-light);
+    }
+
+    /* Barre d'outils du calque papier PDF */
+    .overlay-toolbar {
+      position: absolute;
+      left: 10px;
+      right: 64px;
+      bottom: 225px;
+      z-index: 1000;
+      background: var(--bg-glass);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+    }
+
+    .overlay-toolbar.visible {
+      display: flex;
+    }
+
+    .overlay-toolbar input[type="range"] {
+      flex: 1;
+      accent-color: var(--primary-light);
+    }
+
+    /* Panneau inférieur ( tiroir des circuits & suivi ) */
+    .bottom-sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+      background: var(--bg-glass);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      border-radius: 20px 20px 0 0;
+      max-height: 48dvh;
+      display: flex;
+      flex-direction: column;
+      transition: max-height 0.25s ease;
+      box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .bottom-sheet.minimized {
+      max-height: 76px;
+    }
+
+    .bottom-sheet.expanded {
+      max-height: 78dvh;
+    }
+
+    .sheet-handle-bar {
+      padding: 8px 14px 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .handle-pill {
+      width: 42px;
+      height: 5px;
+      background: rgba(148, 163, 184, 0.45);
+      border-radius: 999px;
+      margin: 0 auto 4px;
+    }
+
+    .sheet-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      overflow-x: auto;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .sheet-content {
+      padding: 10px 14px 18px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Liste des circuits */
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .search-input {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 0.86rem;
+    }
+
+    .circuit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+    }
+
+    .circuit-card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease;
+    }
+
+    .circuit-card:hover {
+      border-color: var(--primary-light);
+    }
+
+    .circuit-card.selected {
+      border: 2px solid var(--primary-light);
+      background: rgba(22, 101, 52, 0.28);
+    }
+
+    .circuit-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .circuit-title {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: #fff;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-gps {
+      background: rgba(22, 163, 74, 0.25);
+      color: #4ade80;
+      border: 1px solid rgba(74, 222, 128, 0.4);
+    }
+
+    .badge-scan {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.35);
+    }
+
+    .circuit-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    /* Détail d'un circuit actif */
+    .active-circuit-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .stat-box {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--primary-light);
+    }
+
+    .stat-lbl {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .waypoint-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .waypoint-item {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.82rem;
+    }
+
+    .waypoint-item.passed {
+      opacity: 0.5;
+    }
+
+    .waypoint-item.next-up {
+      border-color: var(--primary-light);
+      background: rgba(22, 101, 52, 0.32);
+    }
+
+    /* Modale de visualisation du scan papier */
+    dialog#scanModal {
+      margin: auto;
+      width: min(95vw, 960px);
+      height: min(90dvh, 820px);
+      background: var(--bg-dark);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.65);
+    }
+
+    dialog#scanModal::backdrop {
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-inner {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .modal-header {
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-body {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      background: #090d16;
+    }
+
+    .modal-body img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    /* Marqueurs personnalisés sur la carte */
+    .custom-wp-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 0.82rem;
+      color: #fff;
+      border: 2px solid #fff;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+    }
+
+    .user-gps-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #2563eb;
+      border: 3px solid #ffffff;
+      box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.32), 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    @media (max-width: 600px) {
+      .stats-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .brand-title {
+        font-size: 0.88rem;
+      }
+    }
+      /* L'édition des circuits se fait dans admin.html */
+    #btnEditMode, #tabEditor, #btnCalibrateScan { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Barre supérieure -->
+    <div class="top-bar">
+      <div class="header-card">
+        <div class="brand">
+          <img src="icon.svg" alt="Logo Guide Marche Nordique" />
+          <div>
+            <div class="brand-title">Guide Marche Nordique</div>
+            <div class="brand-sub" id="statusSubtitle">23 circuits Sologne • Prêt pour le guidage</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="btn" id="btnAllCircuits" title="Afficher tous les circuits sur la carte">
+            🗺️ Tous (23)
+          </button>
+          <button class="btn active" id="btnVoiceToggle" title="Activer/Désactiver le guidage vocal Bluetooth">
+            🔊 Voix ON
+          </button>
+        </div>
+      </div>
+
+      <!-- Bandeau d'instruction vocale temps réel (affiché en marche ou simulation) -->
+      <div class="nav-banner" id="navBanner">
+        <div class="nav-dir-icon" id="navIcon">⬆️</div>
+        <div class="nav-info">
+          <div class="nav-distance" id="navDistance">Suivez le tracé</div>
+          <div class="nav-instruction" id="navInstruction">Sélectionnez un circuit ou démarrez la marche</div>
+        </div>
+        <button class="btn btn-icon" id="btnRepeatVoice" title="Répéter l'instruction dans l'oreillette">
+          🗣️
+        </button>
+      </div>
+    </div>
+
+    <!-- Boutons d'action rapide à droite sur la carte -->
+    <div class="map-QuickControls">
+      <button class="fab" id="btnLocateMe" title="Ma position GPS temps réel">🎯</button>
+      <button class="fab" id="btnLayerSwitch" title="Changer le fond de carte (Topo / Plan / Satellite)">🏔️</button>
+      <button class="fab" id="btnScanOverlay" title="Superposer la carte papier scannée du PDF">📄</button>
+      <button class="fab" id="btnViewFullScan" title="Ouvrir la feuille PDF scannée en grand">🔍</button>
+      <button class="fab" id="btnEditMode" title="Mode Édition : tracer ou ajuster les points clés">✏️</button>
+    </div>
+
+    <!-- Barre de réglage d'opacité du scan papier -->
+    <div class="overlay-toolbar" id="overlayToolbar">
+      <span>📄 Carte papier :</span>
+      <input type="range" id="scanOpacityRange" min="0" max="100" value="65" />
+      <span id="scanOpacityVal">65%</span>
+      <button class="btn" id="btnCalibrateScan" style="padding:4px 8px;font-size:0.74rem;">Caler</button>
+    </div>
+
+    <!-- Carte interactive -->
+    <div id="map"></div>
+
+    <!-- Tiroir inférieur -->
+    <div class="bottom-sheet" id="bottomSheet">
+      <div class="sheet-handle-bar" id="sheetHandleBar">
+        <div style="flex:1;">
+          <div class="handle-pill"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <strong id="sheetHeaderTitle" style="font-size:0.9rem;">Circuits Marche Nordique (23)</strong>
+            <span id="sheetToggleLabel" style="font-size:0.76rem;color:var(--primary-light);">▲ Agrandir / Réduire</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet-tabs">
+        <button class="btn active" id="tabList">📋 Liste des 23 circuits</button>
+        <button class="btn" id="tabActiveCircuit">🥾 Circuit & Guidage</button>
+        <button class="btn" id="tabSimulator">▶️ Simuler la marche</button>
+        <button class="btn" id="tabEditor">🛠️ Éditeur GPX/Points</button>
+      </div>
+
+      <div class="sheet-content" id="sheetContent">
+        <!-- Vue 1 : Liste des 23 circuits -->
+        <div id="viewList">
+          <div class="search-row">
+            <input type="search" id="searchInput" class="search-input" placeholder="Rechercher (ex: Bracieux, Chambord, Neuvy, Bauzy, 9 km...)" />
+            <button class="btn btn-primary" id="btnSortProximity" title="Trier du plus proche au plus éloigné de ma position">
+              📍 Proximité
+            </button>
+          </div>
+          <div class="circuit-grid" id="circuitGrid"></div>
+        </div>
+
+        <!-- Vue 2 : Circuit sélectionné & Points clés vocaux -->
+        <div id="viewActiveCircuit" style="display:none;" class="active-circuit-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+              <h2 id="activeCircuitName" style="font-size:1.05rem;">Bracieux – Forêt de Boulogne</h2>
+              <div id="activeCircuitStart" style="font-size:0.8rem;color:var(--text-muted);">Départ : Parking de l'Église</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn btn-primary" id="btnStartRealGps">📡 Démarrer Guidage GPS</button>
+              <button class="btn" id="btnPocketMode" title="Écran noir anti-touche pour mettre dans la poche">🌙 Mode Poche</button>
+              <button class="btn btn-accent" id="btnQuickSim">▶️ Démo Vocale</button>
+              <button class="btn" id="btnOpenScanModal">📄 Carte PDF</button>
+            </div>
+          </div>
+
+          <div class="stats-strip">
+            <div class="stat-box">
+              <div class="stat-val" id="statTotalDist">9,0 km</div>
+              <div class="stat-lbl">Distance circuit</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val" id="statNextWpDist">-- m</div>
+              <div class="stat-lbl">Prochain point clé</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val" id="statOffTrack">Sur le tracé</div>
+              <div class="stat-lbl">Écart sentier</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val" id="statWaypointsCount">8 pts</div>
+              <div class="stat-lbl">Annonces vocales</div>
+            </div>
+          </div>
+
+          <p id="activeCircuitNotes" style="font-size:0.82rem;color:#cbd5e1;background:rgba(30,41,59,0.6);padding:8px 10px;border-radius:8px;border-left:3px solid var(--primary-light);"></p>
+
+          <div>
+            <h3 style="font-size:0.85rem;margin-bottom:6px;color:var(--text-muted);">🔊 Points clés & annonces à l'oreillette Bluetooth (cliquez pour écouter) :</h3>
+            <div class="waypoint-list" id="waypointList"></div>
+          </div>
+        </div>
+
+        <!-- Vue 3 : Simulateur de marche (pour tester l'oreillette au salon) -->
+        <div id="viewSimulator" style="display:none;">
+          <div style="background:rgba(30,41,59,0.8);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+              <div>
+                <strong>🏃 Simulateur de Marche Nordique</strong>
+                <div style="font-size:0.78rem;color:var(--text-muted);">Teste le déplacement sur le circuit et déclenche les annonces vocales à 35 m et 10 m des intersections.</div>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-primary" id="btnSimPlayPause">▶️ Lancer la simulation</button>
+                <button class="btn" id="btnSimOffTrack">⚠️ Simuler un écart hors-piste</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:0.82rem;">
+              <span>Progression sur le circuit :</span>
+              <input type="range" id="simProgressRange" min="0" max="1000" value="0" style="flex:1;accent-color:var(--primary-light);" />
+              <span id="simSpeedGroup">
+                <button class="btn" data-speed="1" style="padding:4px 8px;">x1</button>
+                <button class="btn active" data-speed="5" style="padding:4px 8px;">x5</button>
+                <button class="btn" data-speed="12" style="padding:4px 8px;">x12</button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vue 4 : Éditeur intégré pour compléter/ajuster les 23 circuits -->
+        <div id="viewEditor" style="display:none;">
+          <div style="background:rgba(30,41,59,0.8);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <strong>🛠️ Éditeur de tracé & points vocaux (<span id="editorCircuitLabel"></span>)</strong>
+              <p style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">
+                Astuce : Activez le bouton <b>📄 Superposer la carte papier</b> à droite, puis cliquez sur la carte pour ajouter des points au tracé ou créer une annonce vocale à un carrefour.
+              </p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button class="btn active" id="btnEditModeTrack">➕ Clic carte = Ajouter point au tracé</button>
+              <button class="btn" id="btnEditModeWaypoint">🔊 Clic carte = Ajouter annonce vocale</button>
+              <button class="btn" id="btnUndoTrackPoint">↩️ Annuler dernier point</button>
+              <button class="btn btn-danger" id="btnClearTrack">🗑️ Vider le tracé</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:6px;border-top:1px solid var(--border);">
+              <button class="btn btn-primary" id="btnExportGpx">⬇️ Exporter en .GPX</button>
+              <button class="btn" id="btnExportJson">💾 Sauvegarder tous les circuits (.JSON)</button>
+              <label class="btn" style="cursor:pointer;">
+                📂 Importer .GPX
+                <input type="file" id="inputImportGpx" accept=".gpx,.json" style="display:none;" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modale d'affichage haute définition de la carte papier scannée -->
+    <dialog id="scanModal" aria-labelledby="scanModalTitle">
+      <div class="modal-inner">
+        <div class="modal-header">
+          <strong id="scanModalTitle">Carte Papier d'origine (PDF)</strong>
+          <button class="btn" id="btnCloseScanModal">✕ Fermer</button>
+        </div>
+        <div class="modal-body">
+          <img id="scanModalImg" src="" alt="Scan de la carte du circuit" />
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Écran noir "Mode Poche" (économise la batterie et évite les faux appuis) -->
+    <div id="pocketOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#000000;color:#64748b;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;user-select:none;">
+      <div style="font-size:2.4rem;margin-bottom:12px;">🌙🥾</div>
+      <div style="font-size:1.05rem;font-weight:700;color:#94a3b8;">Mode Poche Actif • Guidage Audio & GPS en cours</div>
+      <div id="pocketStatusText" style="font-size:0.88rem;color:#4ade80;margin-top:8px;">Vous pouvez aussi éteindre complètement l'écran avec le bouton Power</div>
+      <div style="margin-top:32px;padding:12px 20px;border:1px solid #334155;border-radius:999px;font-size:0.82rem;color:#94a3b8;">
+        Touchez 2 fois rapidement l'écran pour déverrouiller
+      </div>
+    </div>
+  </div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="circuits-data.js"></script>
+  <script src="supabase-config.js"></script>
+  <script>
+    // Enregistrement du Service Worker pour le mode hors-ligne en forêt
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+
+    // Chargement des circuits : cache de la dernière version en ligne, sinon base embarquée.
+    // La version à jour est ensuite récupérée dans Supabase (voir fetchRemoteCircuits).
+    const CACHE_KEY = 'guide_mn_remote_v1';
+    let circuits = (() => {
+      try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (e) {}
+      return JSON.parse(JSON.stringify(window.DEFAULT_CIRCUITS));
+    })();
+
+    // Les modifications durables passent par admin.html ; ici rien n'est persisté localement.
+    function saveCircuits() {}
+
+    async function fetchRemoteCircuits() {
+      const cfg = window.SUPABASE_CONFIG;
+      if (!cfg || !cfg.url || !cfg.anonKey) return;
+      try {
+        const res = await fetch(
+          `${cfg.url}/rest/v1/circuits?select=id,data&published=eq.true&order=position.asc`,
+          { headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` } }
+        );
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (!Array.isArray(rows) || rows.length === 0) return;
+        const remote = rows.map((r) => Object.assign({ id: r.id }, r.data));
+        const keepId = selectedCircuit && selectedCircuit.id;
+        circuits = remote;
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(remote)); } catch (e) {}
+        selectedCircuit = circuits.find((c) => c.id === keepId) || circuits[1] || circuits[0];
+        announcedWaypoints.clear();
+        renderCircuitCardsUI();
+        renderSelectedCircuit(false);
+      } catch (e) {
+        // Hors-ligne : on garde le cache ou la base embarquée.
+      }
+    }
+
+    // État global de l'application
+    let selectedCircuit = circuits[1] || circuits[0]; // Bracieux 9 km par défaut
+    let showAllCircuitsMode = false;
+    let voiceEnabled = true;
+    let gpsWatchId = null;
+    let userCoords = null;
+    let scanOverlay = null;
+    let isScanOverlayVisible = false;
+    let isCalibratingScan = false;
+    let calibrationStep = 0;
+    let tempSouthWest = null;
+
+    // État du simulateur
+    let simTimer = null;
+    let simProgress = 0; // 0 à 1
+    let simSpeed = 5;
+    let announcedWaypoints = new Set();
+
+    // État de l'éditeur
+    let editorActive = false;
+    let editorClickMode = 'track'; // 'track' | 'waypoint'
+
+    // Initialisation de la carte Leaflet
+    const map = L.map('map', {
+      zoomControl: false,
+      attributionControl: true
+    }).setView(selectedCircuit.startCoords, 14);
+
+    // Fonds de carte (Sentiers Topo / OSM Classique / Satellite)
+    const tileLayers = {
+      topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: '© OpenTopoMap, © OpenStreetMap (Sentiers forestiers & courbes de niveau)'
+      }),
+      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+      }),
+      sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18,
+        attribution: '© Esri World Imagery (Vue aérienne)'
+      })
+    };
+    let currentLayerKey = 'osm';
+    tileLayers.osm.addTo(map);
+
+    // Groupes de calques
+    const circuitLayerGroup = L.layerGroup().addTo(map);
+    const allCircuitsLayerGroup = L.layerGroup().addTo(map);
+    const userLayerGroup = L.layerGroup().addTo(map);
+
+    // Synthèse vocale (Pont Natif Android TTS Bluetooth prioritaire, sinon Web Speech API)
+    let lastSpokenText = "Bienvenue dans Guide Marche Nordique. Sélectionnez un circuit pour démarrer.";
+    function speakInstruction(text, force = false) {
+      lastSpokenText = text;
+      if (!voiceEnabled && !force) return;
+      if (window.AndroidTTS && typeof window.AndroidTTS.speak === 'function') {
+        try {
+          window.AndroidTTS.speak(text);
+          return;
+        } catch (e) {}
+      }
+      if (!('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'fr-FR';
+        utter.rate = 1.02;
+        utter.pitch = 1.0;
+        window.speechSynthesis.speak(utter);
+      } catch (e) {}
+    }
+
+    // Calcul de distance Haversine en mètres
+    function distanceMeters(a, b) {
+      const R = 6371000;
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const dLat = toRad(b[0] - a[0]);
+      const dLon = toRad(b[1] - a[1]);
+      const lat1 = toRad(a[0]);
+      const lat2 = toRad(b[0]);
+      const sinDLat = Math.sin(dLat / 2);
+      const sinDLon = Math.sin(dLon / 2);
+      const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+      return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    }
+
+    // Distance minimale entre un point GPS et les segments du tracé
+    function distanceToTrackMeters(pt, track) {
+      if (!track || track.length === 0) return null;
+      if (track.length === 1) return distanceMeters(pt, track[0]);
+      let minDist = Infinity;
+      for (let i = 0; i < track.length - 1; i++) {
+        const A = track[i];
+        const B = track[i + 1];
+        // Projection approximative sur le segment [A, B]
+        const dx = B[1] - A[1];
+        const dy = B[0] - A[0];
+        const lenSq = dx * dx + dy * dy;
+        let t = 0;
+        if (lenSq > 0) {
+          t = ((pt[1] - A[1]) * dx + (pt[0] - A[0]) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+        }
+        const proj = [A[0] + t * dy, A[1] + t * dx];
+        const d = distanceMeters(pt, proj);
+        if (d < minDist) minDist = d;
+      }
+      return minDist;
+    }
+
+    // Icône selon le type de point clé
+    function getWaypointIconHtml(type, index) {
+      const mapIcons = {
+        'start': { icon: '🚩', bg: '#16a34a' },
+        'turn-left': { icon: '↰', bg: '#2563eb' },
+        'turn-right': { icon: '↱', bg: '#2563eb' },
+        'straight': { icon: '↑', bg: '#0284c7' },
+        'pause': { icon: '☕', bg: '#f59e0b' }
+      };
+      const cfg = mapIcons[type] || { icon: index, bg: '#2563eb' };
+      return `<div class="custom-wp-marker" style="background:${cfg.bg};">${cfg.icon}</div>`;
+    }
+
+    function getBannerIcon(type) {
+      if (type === 'turn-left') return '⬅️';
+      if (type === 'turn-right') return '➡️';
+      if (type === 'pause') return '☕';
+      if (type === 'start') return '🚩';
+      return '⬆️';
+    }
+
+    // Affichage de tous les 23 circuits sur la carte globale
+    function renderAllCircuitsOnMap() {
+      allCircuitsLayerGroup.clearLayers();
+      circuitLayerGroup.clearLayers();
+      const bounds = [];
+
+      circuits.forEach((c) => {
+        bounds.push(c.startCoords);
+        const marker = L.marker(c.startCoords, {
+          icon: L.divIcon({
+            className: '',
+            html: `<div class="custom-wp-marker" style="background:${c.hasFullTrack ? '#16a34a' : '#d97706'};width:32px;height:32px;">${c.page}</div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          })
+        });
+        marker.bindPopup(`
+          <div style="color:#0f172a;min-width:190px;">
+            <strong>#${c.page} – ${c.name}</strong><br/>
+            <span>📏 ${c.distanceKm} km • ⏱️ ${c.duration}</span><br/>
+            <small>📍 ${c.startName}</small><br/>
+            <button onclick="window.selectCircuitById('${c.id}')" style="margin-top:6px;padding:6px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;width:100%;">
+              Ouvrir ce circuit
+            </button>
+          </div>
+        `);
+        marker.addTo(allCircuitsLayerGroup);
+
+        if (c.track && c.track.length > 1) {
+          L.polyline(c.track, {
+            color: c.color || '#16a34a',
+            weight: 4,
+            opacity: 0.85
+          }).addTo(allCircuitsLayerGroup);
+        }
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+      document.getElementById('statusSubtitle').textContent = 'Vue globale : 23 circuits en Sologne';
+    }
+
+    // Affichage du circuit sélectionné
+    function renderSelectedCircuit(fitMap = true) {
+      showAllCircuitsMode = false;
+      document.getElementById('btnAllCircuits').classList.remove('active');
+      allCircuitsLayerGroup.clearLayers();
+      circuitLayerGroup.clearLayers();
+
+      const c = selectedCircuit;
+      document.getElementById('statusSubtitle').textContent = `#${c.page} ${c.name} (${c.distanceKm} km)`;
+      document.getElementById('activeCircuitName').textContent = `#${c.page} – ${c.name}`;
+      document.getElementById('activeCircuitStart').textContent = `📍 Départ : ${c.startName}`;
+      document.getElementById('statTotalDist').textContent = `${c.distanceKm.toString().replace('.', ',')} km`;
+      document.getElementById('statWaypointsCount').textContent = `${(c.waypoints || []).length} pts`;
+      document.getElementById('activeCircuitNotes').textContent = c.notes || '';
+      document.getElementById('editorCircuitLabel').textContent = c.name;
+
+      // Mise à jour du calque papier scanné s'il est actif
+      updateScanOverlay();
+
+      // Tracé principal
+      if (c.track && c.track.length > 1) {
+        // Halo blanc pour lisibilité sur fond satellite ou carte papier
+        L.polyline(c.track, {
+          color: '#ffffff',
+          weight: 9,
+          opacity: 0.75,
+          lineCap: 'round'
+        }).addTo(circuitLayerGroup);
+
+        const poly = L.polyline(c.track, {
+          color: c.color || '#16a34a',
+          weight: 5,
+          opacity: 0.95,
+          lineCap: 'round'
+        }).addTo(circuitLayerGroup);
+
+        // Petites flèches de sens de marche le long des segments
+        for (let i = 0; i < c.track.length - 1; i += 2) {
+          const p1 = c.track[i];
+          const p2 = c.track[i + 1];
+          const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+          const angle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * (180 / Math.PI);
+          L.marker(mid, {
+            interactive: false,
+            icon: L.divIcon({
+              className: '',
+              html: `<div style="transform:rotate(${angle}deg);font-size:14px;color:#ffffff;text-shadow:0 0 4px #000;font-weight:900;">▲</div>`,
+              iconSize: [16, 16],
+              iconAnchor: [8, 8]
+            })
+          }).addTo(circuitLayerGroup);
+        }
+
+        if (fitMap) {
+          map.fitBounds(poly.getBounds(), { padding: [60, 60] });
+        }
+      } else {
+        // Circuit avec point de départ uniquement (en attente de tracé ou utilisé avec le calque papier)
+        L.marker(c.startCoords, {
+          icon: L.divIcon({
+            className: '',
+            html: getWaypointIconHtml('start', 1),
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          })
+        })
+          .bindPopup(`<strong>Départ : ${c.startName}</strong><br/>Activez le bouton 📄 pour afficher la carte scannée sur la carte.`)
+          .addTo(circuitLayerGroup);
+
+        if (fitMap) {
+          map.setView(c.startCoords, 14);
+        }
+      }
+
+      // Variante éventuelle (pointillés)
+      if (c.variantTrack && c.variantTrack.length > 1) {
+        L.polyline(c.variantTrack, {
+          color: '#f59e0b',
+          weight: 4,
+          dashArray: '8, 8',
+          opacity: 0.95
+        })
+          .bindTooltip(c.variantText || 'Variante', { sticky: true })
+          .addTo(circuitLayerGroup);
+      }
+
+      // Points clés vocaux
+      (c.waypoints || []).forEach((wp, idx) => {
+        const m = L.marker([wp.lat, wp.lng], {
+          icon: L.divIcon({
+            className: '',
+            html: getWaypointIconHtml(wp.type, idx + 1),
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          })
+        });
+        m.bindPopup(`
+          <div style="color:#0f172a;max-width:230px;">
+            <strong>${idx + 1}. ${wp.title}</strong>
+            <p style="margin:5px 0;font-size:0.82rem;">🔊 « ${wp.voice} »</p>
+            <button onclick="window.testSpeakWaypoint(${idx})" style="padding:5px 9px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.78rem;">
+              🔊 Écouter dans l'oreillette
+            </button>
+          </div>
+        `);
+        m.addTo(circuitLayerGroup);
+      });
+
+      renderWaypointListUI();
+      renderCircuitCardsUI();
+      if (window.AndroidTTS && typeof window.AndroidTTS.updateCircuit === 'function') {
+        try {
+          window.AndroidTTS.updateCircuit(JSON.stringify(selectedCircuit));
+        } catch (e) {}
+      }
+    }
+
+    window.testSpeakWaypoint = function(idx) {
+      const wp = selectedCircuit.waypoints[idx];
+      if (!wp) return;
+      document.getElementById('navBanner').classList.add('visible');
+      document.getElementById('navIcon').textContent = getBannerIcon(wp.type);
+      document.getElementById('navDistance').textContent = `Point clé #${idx + 1} – ${wp.title}`;
+      document.getElementById('navInstruction').textContent = wp.voice;
+      speakInstruction(wp.voice, true);
+    };
+
+    window.selectCircuitById = function(id) {
+      const found = circuits.find((c) => c.id === id);
+      if (!found) return;
+      selectedCircuit = found;
+      announcedWaypoints.clear();
+      stopSimulation();
+      renderSelectedCircuit(true);
+      switchTab('tabActiveCircuit');
+    };
+
+    // Rendu de la liste des points clés dans l'onglet Circuit
+    function renderWaypointListUI() {
+      const container = document.getElementById('waypointList');
+      const wps = selectedCircuit.waypoints || [];
+      if (wps.length === 0) {
+        container.innerHTML = `
+          <div class="waypoint-item">
+            <span>Aucun point vocal enregistré sur ce circuit. Utilisez le bouton <b>📄 Calque Papier</b> ou l'onglet <b>🛠️ Éditeur</b> pour en ajouter en 1 clic.</span>
+          </div>
+        `;
+        return;
+      }
+      container.innerHTML = wps
+        .map(
+          (wp, i) => `
+          <div class="waypoint-item" id="wp-item-${i}" onclick="window.testSpeakWaypoint(${i})" style="cursor:pointer;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:1.2rem;">${getBannerIcon(wp.type)}</span>
+              <div>
+                <div style="font-weight:700;">${i + 1}. ${wp.title}</div>
+                <div style="font-size:0.77rem;color:var(--text-muted);">« ${wp.voice} »</div>
+              </div>
+            </div>
+            <span style="font-size:0.78rem;color:var(--primary-light);font-weight:700;">🔊 Tester</span>
+          </div>
+        `
+        )
+        .join('');
+    }
+
+    // Rendu des 23 cartes de circuits dans l'onglet Liste
+    function renderCircuitCardsUI() {
+      const query = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      const grid = document.getElementById('circuitGrid');
+
+      const filtered = circuits.filter((c) => {
+        if (!query) return true;
+        return (
+          c.name.toLowerCase().includes(query) ||
+          c.commune.toLowerCase().includes(query) ||
+          c.startName.toLowerCase().includes(query) ||
+          String(c.distanceKm).includes(query)
+        );
+      });
+
+      grid.innerHTML = filtered
+        .map((c) => {
+          const isSelected = c.id === selectedCircuit.id;
+          let distFromUserHtml = '';
+          if (userCoords) {
+            const dKm = (distanceMeters(userCoords, c.startCoords) / 1000).toFixed(1);
+            distFromUserHtml = `<span>📍 à ${dKm} km de vous</span>`;
+          }
+          return `
+            <div class="circuit-card ${isSelected ? 'selected' : ''}" onclick="window.selectCircuitById('${c.id}')">
+              <div class="circuit-card-header">
+                <div class="circuit-title">#${c.page} – ${c.name}</div>
+                ${
+                  c.hasFullTrack
+                    ? `<span class="badge badge-gps">✓ GPS + Voix</span>`
+                    : `<span class="badge badge-scan">📄 Carte PDF</span>`
+                }
+              </div>
+              <div class="circuit-meta">
+                <span>📏 <b>${c.distanceKm.toString().replace('.', ',')} km</b></span>
+                <span>⏱️ ${c.duration}</span>
+                ${distFromUserHtml}
+              </div>
+              <div style="font-size:0.76rem;color:#cbd5e1;">Départ : ${c.startName}</div>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    // Superposition du scan papier PDF sur la carte (Ground Overlay)
+    function updateScanOverlay() {
+      if (scanOverlay) {
+        map.removeLayer(scanOverlay);
+        scanOverlay = null;
+      }
+      if (!isScanOverlayVisible || !selectedCircuit.scanImage || !selectedCircuit.scanBounds) {
+        return;
+      }
+      const opacity = Number(document.getElementById('scanOpacityRange').value) / 100;
+      scanOverlay = L.imageOverlay(selectedCircuit.scanImage, selectedCircuit.scanBounds, {
+        opacity: opacity,
+        interactive: false
+      }).addTo(map);
+    }
+
+    // Mise à jour de la position du marcheur (GPS réel ou Simulateur) + Déclenchement vocal Bluetooth
+    function updateWalkerPosition(coords, isSimulation = false, fromNativeService = false) {
+      userCoords = coords;
+      userLayerGroup.clearLayers();
+
+      // Cercle de précision + Point bleu GPS
+      L.circle(coords, {
+        radius: 14,
+        color: '#2563eb',
+        fillColor: '#3b82f6',
+        fillOpacity: 0.22,
+        weight: 1
+      }).addTo(userLayerGroup);
+
+      L.marker(coords, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="user-gps-dot"></div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        })
+      })
+        .bindTooltip(isSimulation ? 'Marcheur (Simulation)' : 'Votre position GPS')
+        .addTo(userLayerGroup);
+
+      const banner = document.getElementById('navBanner');
+      banner.classList.add('visible');
+
+      // 1. Vérification d'écart hors-circuit (> 38 m)
+      if (selectedCircuit.track && selectedCircuit.track.length > 1) {
+        const offDist = Math.round(distanceToTrackMeters(coords, selectedCircuit.track));
+        const statOff = document.getElementById('statOffTrack');
+        if (offDist > 38) {
+          statOff.textContent = `⚠️ ${offDist} m`;
+          statOff.style.color = '#f87171';
+          banner.classList.add('off-track');
+          document.getElementById('navIcon').textContent = '⚠️';
+          document.getElementById('navDistance').textContent = `Hors-circuit (${offDist} m)`;
+          document.getElementById('navInstruction').textContent =
+            'Attention, vous vous éloignez du tracé. Vérifiez la carte.';
+          const pocketTxt = document.getElementById('pocketStatusText');
+          if (pocketTxt) pocketTxt.textContent = `⚠️ Hors-circuit (${offDist} m)`;
+          if (!announcedWaypoints.has('offtrack-alert')) {
+            announcedWaypoints.add('offtrack-alert');
+            if (!fromNativeService) {
+              speakInstruction(`Attention, vous vous éloignez du circuit de ${offDist} mètres.`);
+            }
+          }
+          return;
+        } else {
+          statOff.textContent = `${offDist} m (OK)`;
+          statOff.style.color = '#4ade80';
+          banner.classList.remove('off-track');
+          announcedWaypoints.delete('offtrack-alert');
+        }
+      }
+
+      // 2. Recherche du point clé vocal le plus proche
+      const wps = selectedCircuit.waypoints || [];
+      if (wps.length === 0) return;
+
+      let closestIdx = 0;
+      let minDist = Infinity;
+      wps.forEach((wp, idx) => {
+        const d = distanceMeters(coords, [wp.lat, wp.lng]);
+        if (d < minDist) {
+          minDist = d;
+          closestIdx = idx;
+        }
+      });
+
+      const nearestWp = wps[closestIdx];
+      const roundedDist = Math.round(minDist);
+      document.getElementById('statNextWpDist').textContent = `${roundedDist} m`;
+      document.getElementById('navIcon').textContent = getBannerIcon(nearestWp.type);
+      document.getElementById('navDistance').textContent = `À ${roundedDist} m • ${nearestWp.title}`;
+      document.getElementById('navInstruction').textContent = nearestWp.voice;
+      const pocketTxt = document.getElementById('pocketStatusText');
+      if (pocketTxt) pocketTxt.textContent = `À ${roundedDist} m : ${nearestWp.title}`;
+
+      // Mise en évidence dans la liste des points clés
+      document.querySelectorAll('.waypoint-item').forEach((el, i) => {
+        el.classList.toggle('next-up', i === closestIdx);
+      });
+
+      // Pré-annonce à 40 m et annonce d'action immédiate à 15 m
+      const preKey = `pre-${closestIdx}`;
+      const actKey = `act-${closestIdx}`;
+
+      if (roundedDist <= 16 && !announcedWaypoints.has(actKey)) {
+        announcedWaypoints.add(actKey);
+        announcedWaypoints.add(preKey);
+        lastSpokenText = `À 10 mètres : ${nearestWp.voice}`;
+        if (!fromNativeService) {
+          speakInstruction(lastSpokenText);
+        }
+      } else if (roundedDist <= 42 && roundedDist > 16 && !announcedWaypoints.has(preKey)) {
+        announcedWaypoints.add(preKey);
+        lastSpokenText = `Attention, dans ${roundedDist} mètres : ${nearestWp.title}. ${nearestWp.voice}`;
+        if (!fromNativeService) {
+          speakInstruction(lastSpokenText);
+        }
+      }
+    }
+
+    // Réception directe des coordonnées GPS depuis le Service Android de premier plan (même écran éteint)
+    window.onNativeGpsUpdate = function(lat, lng, centerMap = false) {
+      const coords = [Number(lat), Number(lng)];
+      updateWalkerPosition(coords, false, true);
+      if (centerMap) {
+        map.setView(coords, 15);
+        renderCircuitCardsUI();
+      }
+    };
+
+    // Interpolation le long du tracé pour le simulateur de marche
+    function getPointAlongTrack(track, fraction) {
+      if (!track || track.length === 0) return selectedCircuit.startCoords;
+      if (track.length === 1) return track[0];
+      const segLengths = [];
+      let totalLen = 0;
+      for (let i = 0; i < track.length - 1; i++) {
+        const d = distanceMeters(track[i], track[i + 1]);
+        segLengths.push(d);
+        totalLen += d;
+      }
+      let target = fraction * totalLen;
+      for (let i = 0; i < segLengths.length; i++) {
+        if (target <= segLengths[i] || i === segLengths.length - 1) {
+          const ratio = segLengths[i] > 0 ? target / segLengths[i] : 0;
+          const A = track[i];
+          const B = track[i + 1];
+          return [A[0] + (B[0] - A[0]) * ratio, A[1] + (B[1] - A[1]) * ratio];
+        }
+        target -= segLengths[i];
+      }
+      return track[track.length - 1];
+    }
+
+    function startSimulation() {
+      if (!selectedCircuit.track || selectedCircuit.track.length < 2) {
+        alert("Ce circuit n'a pas encore de tracé vectoriel. Sélectionnez Bracieux, Neuvy ou Chambord, ou tracez-le dans l'éditeur !");
+        return;
+      }
+      if (simTimer) {
+        stopSimulation();
+        return;
+      }
+      announcedWaypoints.clear();
+      document.getElementById('btnSimPlayPause').textContent = '⏸️ Pause simulation';
+      speakInstruction(`Démarrage de la simulation sur le circuit ${selectedCircuit.name}.`);
+
+      simTimer = setInterval(() => {
+        simProgress += 0.0008 * simSpeed;
+        if (simProgress >= 1) {
+          simProgress = 0;
+          announcedWaypoints.clear();
+        }
+        document.getElementById('simProgressRange').value = Math.round(simProgress * 1000);
+        const pt = getPointAlongTrack(selectedCircuit.track, simProgress);
+        updateWalkerPosition(pt, true);
+      }, 250);
+    }
+
+    function stopSimulation() {
+      if (simTimer) {
+        clearInterval(simTimer);
+        simTimer = null;
+      }
+      const btn = document.getElementById('btnSimPlayPause');
+      if (btn) btn.textContent = '▶️ Lancer la simulation';
+    }
+
+    // Activation du vrai GPS Android (Service natif premier plan Écran Éteint) / Navigateur + WakeLock
+    async function toggleRealGpsTracking() {
+      const btn = document.getElementById('btnStartRealGps');
+      const hasNativeService = Boolean(window.AndroidTTS && typeof window.AndroidTTS.startGpsService === 'function');
+
+      if (gpsWatchId !== null) {
+        if (gpsWatchId === 'native-service' && window.AndroidTTS && typeof window.AndroidTTS.stopGpsService === 'function') {
+          window.AndroidTTS.stopGpsService();
+        } else if (typeof gpsWatchId === 'number') {
+          navigator.geolocation.clearWatch(gpsWatchId);
+        }
+        gpsWatchId = null;
+        btn.textContent = '📡 Démarrer Guidage GPS';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-primary');
+        speakInstruction('Suivi GPS arrêté.');
+        return;
+      }
+
+      stopSimulation();
+      announcedWaypoints.clear();
+
+      // Si on est dans l'APK Android natif : démarrer le Foreground Service (fonctionne écran éteint / verrouillé en poche)
+      if (hasNativeService) {
+        try {
+          window.AndroidTTS.startGpsService(JSON.stringify(selectedCircuit));
+          gpsWatchId = 'native-service';
+          btn.textContent = '⏹️ Arrêter GPS actif (Écran éteint OK)';
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-danger');
+          return;
+        } catch (err) {
+          console.warn('Fallback navigateur GPS:', err);
+        }
+      }
+
+      if (!('geolocation' in navigator)) {
+        alert('La géolocalisation GPS n’est pas disponible sur cet appareil.');
+        return;
+      }
+
+      // Demande de maintien actif (WakeLock API Android Chrome)
+      if ('wakeLock' in navigator) {
+        try {
+          await navigator.wakeLock.request('screen');
+        } catch (e) {}
+      }
+
+      btn.textContent = '⏹️ Arrêter GPS actif';
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-danger');
+      speakInstruction(`Guidage GPS activé sur ${selectedCircuit.name}. Bonne marche nordique !`);
+
+      gpsWatchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const coords = [pos.coords.latitude, pos.coords.longitude];
+          updateWalkerPosition(coords, false);
+        },
+        (err) => {
+          console.warn('Erreur GPS:', err);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 2000,
+          timeout: 10000
+        }
+      );
+    }
+
+    // Navigation entre les onglets du panneau inférieur
+    function switchTab(tabId) {
+      const tabs = ['tabList', 'tabActiveCircuit', 'tabSimulator', 'tabEditor'];
+      const views = {
+        tabList: 'viewList',
+        tabActiveCircuit: 'viewActiveCircuit',
+        tabSimulator: 'viewSimulator',
+        tabEditor: 'viewEditor'
+      };
+      tabs.forEach((t) => {
+        document.getElementById(t).classList.toggle('active', t === tabId);
+        document.getElementById(views[t]).style.display = t === tabId ? 'block' : 'none';
+      });
+      editorActive = tabId === 'tabEditor';
+      document.getElementById('btnEditMode').classList.toggle('active', editorActive);
+    }
+
+    // Gestion des clics sur la carte (Mode Calage Carte Papier ou Mode Éditeur)
+    map.on('click', (e) => {
+      const lat = Number(e.latlng.lat.toFixed(5));
+      const lng = Number(e.latlng.lng.toFixed(5));
+
+      if (isCalibratingScan) {
+        if (calibrationStep === 0) {
+          tempSouthWest = [lat, lng];
+          calibrationStep = 1;
+          alert('Coin Sud-Ouest enregistré ! Cliquez maintenant sur la carte à l’emplacement du coin Nord-Est de la feuille papier.');
+        } else {
+          selectedCircuit.scanBounds = [tempSouthWest, [lat, lng]];
+          isCalibratingScan = false;
+          calibrationStep = 0;
+          saveCircuits();
+          updateScanOverlay();
+          alert('Calage de la carte papier mis à jour et sauvegardé !');
+        }
+        return;
+      }
+
+      if (!editorActive) return;
+
+      if (editorClickMode === 'track') {
+        if (!selectedCircuit.track) selectedCircuit.track = [];
+        selectedCircuit.track.push([lat, lng]);
+        selectedCircuit.hasFullTrack = selectedCircuit.track.length > 1;
+        saveCircuits();
+        renderSelectedCircuit(false);
+      } else if (editorClickMode === 'waypoint') {
+        const title = prompt('Nom du repère / carrefour (ex: Carrefour du Sapin) :', 'Carrefour');
+        if (!title) return;
+        const voice = prompt(
+          'Instruction vocale annoncée dans l’oreillette à 10 mètres :',
+          'Attention, à 10 mètres, tournez à droite.'
+        );
+        if (!voice) return;
+        if (!selectedCircuit.waypoints) selectedCircuit.waypoints = [];
+        selectedCircuit.waypoints.push({
+          lat,
+          lng,
+          type: 'turn-right',
+          title,
+          voice
+        });
+        saveCircuits();
+        renderSelectedCircuit(false);
+      }
+    });
+
+    // Écouteurs d'interface
+    document.getElementById('tabList').addEventListener('click', () => switchTab('tabList'));
+    document.getElementById('tabActiveCircuit').addEventListener('click', () => switchTab('tabActiveCircuit'));
+    document.getElementById('tabSimulator').addEventListener('click', () => switchTab('tabSimulator'));
+    document.getElementById('tabEditor').addEventListener('click', () => switchTab('tabEditor'));
+
+    document.getElementById('sheetHandleBar').addEventListener('click', () => {
+      const sheet = document.getElementById('bottomSheet');
+      if (sheet.classList.contains('minimized')) {
+        sheet.classList.remove('minimized');
+        sheet.classList.add('expanded');
+      } else if (sheet.classList.contains('expanded')) {
+        sheet.classList.remove('expanded');
+      } else {
+        sheet.classList.add('minimized');
+      }
+    });
+
+    document.getElementById('searchInput').addEventListener('input', renderCircuitCardsUI);
+
+    document.getElementById('btnAllCircuits').addEventListener('click', () => {
+      showAllCircuitsMode = !showAllCircuitsMode;
+      document.getElementById('btnAllCircuits').classList.toggle('active', showAllCircuitsMode);
+      if (showAllCircuitsMode) {
+        renderAllCircuitsOnMap();
+      } else {
+        renderSelectedCircuit(true);
+      }
+    });
+
+    document.getElementById('btnVoiceToggle').addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      const btn = document.getElementById('btnVoiceToggle');
+      btn.classList.toggle('active', voiceEnabled);
+      btn.textContent = voiceEnabled ? '🔊 Voix ON' : '🔇 Muet';
+      if (window.AndroidTTS && typeof window.AndroidTTS.setVoiceEnabled === 'function') {
+        try {
+          window.AndroidTTS.setVoiceEnabled(voiceEnabled);
+        } catch (e) {}
+      }
+      if (voiceEnabled) {
+        speakInstruction('Guidage vocal Bluetooth activé.', true);
+      } else {
+        if (window.AndroidTTS && typeof window.AndroidTTS.stop === 'function') {
+          try { window.AndroidTTS.stop(); } catch (e) {}
+        }
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+      }
+    });
+
+    // Mode Poche (écran noir anti-tactile avec double-clic pour déverrouiller)
+    const pocketOverlayEl = document.getElementById('pocketOverlay');
+    const btnPocketModeEl = document.getElementById('btnPocketMode');
+    if (btnPocketModeEl && pocketOverlayEl) {
+      btnPocketModeEl.addEventListener('click', () => {
+        pocketOverlayEl.classList.add('active');
+      });
+      let lastPocketTap = 0;
+      pocketOverlayEl.addEventListener('click', () => {
+        const now = Date.now();
+        if (now - lastPocketTap < 420) {
+          pocketOverlayEl.classList.remove('active');
+        }
+        lastPocketTap = now;
+      });
+    }
+
+    document.getElementById('btnRepeatVoice').addEventListener('click', () => {
+      speakInstruction(lastSpokenText, true);
+    });
+
+    document.getElementById('btnLocateMe').addEventListener('click', () => {
+      if (window.AndroidTTS && typeof window.AndroidTTS.requestLocateOnce === 'function') {
+        try {
+          window.AndroidTTS.requestLocateOnce();
+        } catch (e) {}
+      }
+      if (!('geolocation' in navigator)) {
+        alert('GPS non disponible sur cet appareil.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = [pos.coords.latitude, pos.coords.longitude];
+          updateWalkerPosition(coords, false);
+          map.setView(coords, 15);
+          renderCircuitCardsUI();
+        },
+        () => {
+          if (!userCoords) {
+            map.setView(selectedCircuit.startCoords, 15);
+          }
+        }
+      );
+    });
+
+    document.getElementById('btnSortProximity').addEventListener('click', () => {
+      const refCoords = userCoords || selectedCircuit.startCoords;
+      circuits.sort(
+        (a, b) => distanceMeters(refCoords, a.startCoords) - distanceMeters(refCoords, b.startCoords)
+      );
+      renderCircuitCardsUI();
+    });
+
+    document.getElementById('btnLayerSwitch').addEventListener('click', () => {
+      map.removeLayer(tileLayers[currentLayerKey]);
+      const order = ['osm', 'topo', 'sat'];
+      currentLayerKey = order[(order.indexOf(currentLayerKey) + 1) % order.length];
+      tileLayers[currentLayerKey].addTo(map);
+      const labels = {
+        osm: 'Plan Sentiers OSM',
+        topo: 'Carte Topographique (Courbes & Forêts)',
+        sat: 'Vue Satellite Aérienne'
+      };
+      document.getElementById('statusSubtitle').textContent = `Fond de carte : ${labels[currentLayerKey]}`;
+    });
+
+    document.getElementById('btnScanOverlay').addEventListener('click', () => {
+      isScanOverlayVisible = !isScanOverlayVisible;
+      document.getElementById('btnScanOverlay').classList.toggle('active', isScanOverlayVisible);
+      document.getElementById('overlayToolbar').classList.toggle('visible', isScanOverlayVisible);
+      updateScanOverlay();
+      if (isScanOverlayVisible && selectedCircuit.scanBounds) {
+        map.fitBounds(selectedCircuit.scanBounds);
+      }
+    });
+
+    document.getElementById('scanOpacityRange').addEventListener('input', (e) => {
+      document.getElementById('scanOpacityVal').textContent = `${e.target.value}%`;
+      if (scanOverlay) {
+        scanOverlay.setOpacity(Number(e.target.value) / 100);
+      }
+    });
+
+    document.getElementById('btnCalibrateScan').addEventListener('click', () => {
+      isCalibratingScan = true;
+      calibrationStep = 0;
+      alert('Calage de la carte papier : Cliquez d’abord sur la carte à l’emplacement du coin SUD-OUEST (bas-gauche) de la feuille papier.');
+    });
+
+    // Modale d'affichage de la feuille PDF scannée
+    function openScanModal() {
+      const modal = document.getElementById('scanModal');
+      document.getElementById('scanModalTitle').textContent = `Feuille PDF #${selectedCircuit.page} – ${selectedCircuit.name}`;
+      document.getElementById('scanModalImg').src = selectedCircuit.scanImage;
+      modal.showModal();
+    }
+
+    document.getElementById('btnViewFullScan').addEventListener('click', openScanModal);
+    document.getElementById('btnOpenScanModal').addEventListener('click', openScanModal);
+    document.getElementById('btnCloseScanModal').addEventListener('click', () => {
+      document.getElementById('scanModal').close();
+    });
+
+    document.getElementById('btnEditMode').addEventListener('click', () => {
+      switchTab('tabEditor');
+    });
+
+    document.getElementById('btnStartRealGps').addEventListener('click', toggleRealGpsTracking);
+
+    document.getElementById('btnQuickSim').addEventListener('click', () => {
+      switchTab('tabSimulator');
+      startSimulation();
+    });
+
+    document.getElementById('btnSimPlayPause').addEventListener('click', startSimulation);
+
+    document.getElementById('simProgressRange').addEventListener('input', (e) => {
+      simProgress = Number(e.target.value) / 1000;
+      if (selectedCircuit.track && selectedCircuit.track.length > 1) {
+        const pt = getPointAlongTrack(selectedCircuit.track, simProgress);
+        updateWalkerPosition(pt, true);
+      }
+    });
+
+    document.getElementById('btnSimOffTrack').addEventListener('click', () => {
+      const base = userCoords || selectedCircuit.startCoords;
+      // Décale le marcheur de ~65 m au nord-est pour tester l'alerte vocale hors-piste
+      updateWalkerPosition([base[0] + 0.00055, base[1] + 0.00055], true);
+    });
+
+    document.querySelectorAll('#simSpeedGroup button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#simSpeedGroup button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        simSpeed = Number(btn.dataset.speed);
+      });
+    });
+
+    // Boutons de l'éditeur
+    document.getElementById('btnEditModeTrack').addEventListener('click', () => {
+      editorClickMode = 'track';
+      document.getElementById('btnEditModeTrack').classList.add('active');
+      document.getElementById('btnEditModeWaypoint').classList.remove('active');
+    });
+
+    document.getElementById('btnEditModeWaypoint').addEventListener('click', () => {
+      editorClickMode = 'waypoint';
+      document.getElementById('btnEditModeWaypoint').classList.add('active');
+      document.getElementById('btnEditModeTrack').classList.remove('active');
+    });
+
+    document.getElementById('btnUndoTrackPoint').addEventListener('click', () => {
+      if (selectedCircuit.track && selectedCircuit.track.length > 0) {
+        selectedCircuit.track.pop();
+        selectedCircuit.hasFullTrack = selectedCircuit.track.length > 1;
+        saveCircuits();
+        renderSelectedCircuit(false);
+      }
+    });
+
+    document.getElementById('btnClearTrack').addEventListener('click', () => {
+      if (confirm(`Voulez-vous vraiment effacer le tracé de "${selectedCircuit.name}" ?`)) {
+        selectedCircuit.track = [];
+        selectedCircuit.hasFullTrack = false;
+        saveCircuits();
+        renderSelectedCircuit(false);
+      }
+    });
+
+    // Export GPX standard
+    document.getElementById('btnExportGpx').addEventListener('click', () => {
+      const c = selectedCircuit;
+      const wpsXml = (c.waypoints || [])
+        .map(
+          (w) =>
+            `  <wpt lat="${w.lat}" lon="${w.lng}"><name>${w.title}</name><desc>${w.voice}</desc></wpt>`
+        )
+        .join('\n');
+      const trkXml = (c.track || [])
+        .map((pt) => `      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>`)
+        .join('\n');
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Guide Marche Nordique Sologne" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${c.name}</name></metadata>
+${wpsXml}
+  <trk>
+    <name>${c.name}</name>
+    <trkseg>
+${trkXml}
+    </trkseg>
+  </trk>
+</gpx>`;
+      const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${c.id}.gpx`;
+      a.click();
+    });
+
+    // Export JSON complet des 23 circuits
+    document.getElementById('btnExportJson').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(circuits, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'circuits-marche-nordique-sologne.json';
+      a.click();
+    });
+
+    // Import GPX ou JSON
+    document.getElementById('inputImportGpx').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result;
+        if (file.name.endsWith('.json')) {
+          try {
+            const parsed = JSON.parse(text);
+            if (Array.isArray(parsed)) {
+              circuits = parsed;
+              saveCircuits();
+              selectedCircuit = circuits[0];
+              renderSelectedCircuit(true);
+              alert('Base des circuits importée avec succès !');
+            }
+          } catch (err) {
+            alert('Fichier JSON invalide.');
+          }
+        } else {
+          // Parsing GPX
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(text, 'text/xml');
+          const pts = Array.from(xml.querySelectorAll('trkpt, rtept')).map((el) => [
+            parseFloat(el.getAttribute('lat')),
+            parseFloat(el.getAttribute('lon'))
+          ]);
+          if (pts.length > 1) {
+            selectedCircuit.track = pts;
+            selectedCircuit.startCoords = pts[0];
+            selectedCircuit.hasFullTrack = true;
+            saveCircuits();
+            renderSelectedCircuit(true);
+            alert(`${pts.length} points GPS importés sur le circuit ${selectedCircuit.name} !`);
+          }
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Démarrage initial
+    renderSelectedCircuit(true);
+    fetchRemoteCircuits();
+  </script>
+</body>
+</html>
