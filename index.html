@@ -811,13 +811,14 @@
       if (!cfg || !cfg.url || !cfg.anonKey) return;
       try {
         const res = await fetch(
-          `${cfg.url}/rest/v1/circuits?select=id,data&published=eq.true&order=position.asc`,
+          `${cfg.url}/rest/v1/circuits?select=id,position,data&published=eq.true&order=position.asc`,
           { headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` } }
         );
         if (!res.ok) return;
         const rows = await res.json();
         if (!Array.isArray(rows) || rows.length === 0) return;
-        const remote = rows.map((r) => Object.assign({ id: r.id }, r.data));
+        // Le numéro affiché est le N° saisi dans l'admin (position en base), pas un champ du JSON.
+        const remote = rows.map((r) => Object.assign({}, r.data, { id: r.id, page: r.position }));
         const keepId = selectedCircuit && selectedCircuit.id;
         circuits = remote;
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(remote)); } catch (e) {}
