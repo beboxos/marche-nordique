@@ -799,6 +799,11 @@
     })();
 
     // Les modifications durables passent par admin.html ; ici rien n'est persisté localement.
+    // Les textes des circuits viennent de la base : toujours échappés avant d'entrer dans du HTML.
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
     function saveCircuits() {}
 
     async function fetchRemoteCircuits() {
@@ -968,17 +973,17 @@
         const marker = L.marker(c.startCoords, {
           icon: L.divIcon({
             className: '',
-            html: `<div class="custom-wp-marker" style="background:${c.hasFullTrack ? '#16a34a' : '#d97706'};width:32px;height:32px;">${c.page}</div>`,
+            html: `<div class="custom-wp-marker" style="background:${c.hasFullTrack ? '#16a34a' : '#d97706'};width:32px;height:32px;">${Number(c.page)}</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
           })
         });
         marker.bindPopup(`
           <div style="color:#0f172a;min-width:190px;">
-            <strong>#${c.page} – ${c.name}</strong><br/>
-            <span>📏 ${c.distanceKm} km • ⏱️ ${c.duration}</span><br/>
-            <small>📍 ${c.startName}</small><br/>
-            <button onclick="window.selectCircuitById('${c.id}')" style="margin-top:6px;padding:6px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;width:100%;">
+            <strong>#${Number(c.page)} – ${esc(c.name)}</strong><br/>
+            <span>📏 ${Number(c.distanceKm)} km • ⏱️ ${esc(c.duration)}</span><br/>
+            <small>📍 ${esc(c.startName)}</small><br/>
+            <button data-circuit-id="${esc(c.id)}" onclick="window.selectCircuitById(this.dataset.circuitId)" style="margin-top:6px;padding:6px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;width:100%;">
               Ouvrir ce circuit
             </button>
           </div>
@@ -1008,10 +1013,10 @@
       circuitLayerGroup.clearLayers();
 
       const c = selectedCircuit;
-      document.getElementById('statusSubtitle').textContent = `#${c.page} ${c.name} (${c.distanceKm} km)`;
-      document.getElementById('activeCircuitName').textContent = `#${c.page} – ${c.name}`;
-      document.getElementById('activeCircuitStart').textContent = `📍 Départ : ${c.startName}`;
-      document.getElementById('statTotalDist').textContent = `${c.distanceKm.toString().replace('.', ',')} km`;
+      document.getElementById('statusSubtitle').textContent = `#${Number(c.page)} ${esc(c.name)} (${Number(c.distanceKm)} km)`;
+      document.getElementById('activeCircuitName').textContent = `#${Number(c.page)} – ${esc(c.name)}`;
+      document.getElementById('activeCircuitStart').textContent = `📍 Départ : ${esc(c.startName)}`;
+      document.getElementById('statTotalDist').textContent = `${String(Number(c.distanceKm)).replace('.', ',')} km`;
       document.getElementById('statWaypointsCount').textContent = `${(c.waypoints || []).length} pts`;
       document.getElementById('activeCircuitNotes').textContent = c.notes || '';
       document.getElementById('editorCircuitLabel').textContent = c.name;
@@ -1066,7 +1071,7 @@
             iconAnchor: [15, 15]
           })
         })
-          .bindPopup(`<strong>Départ : ${c.startName}</strong><br/>Activez le bouton 📄 pour afficher la carte scannée sur la carte.`)
+          .bindPopup(`<strong>Départ : ${esc(c.startName)}</strong><br/>Activez le bouton 📄 pour afficher la carte scannée sur la carte.`)
           .addTo(circuitLayerGroup);
 
         if (fitMap) {
@@ -1098,8 +1103,8 @@
         });
         m.bindPopup(`
           <div style="color:#0f172a;max-width:230px;">
-            <strong>${idx + 1}. ${wp.title}</strong>
-            <p style="margin:5px 0;font-size:0.82rem;">🔊 « ${wp.voice} »</p>
+            <strong>${idx + 1}. ${esc(wp.title)}</strong>
+            <p style="margin:5px 0;font-size:0.82rem;">🔊 « ${esc(wp.voice)} »</p>
             <button onclick="window.testSpeakWaypoint(${idx})" style="padding:5px 9px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.78rem;">
               🔊 Écouter dans l'oreillette
             </button>
@@ -1122,7 +1127,7 @@
       if (!wp) return;
       document.getElementById('navBanner').classList.add('visible');
       document.getElementById('navIcon').textContent = getBannerIcon(wp.type);
-      document.getElementById('navDistance').textContent = `Point clé #${idx + 1} – ${wp.title}`;
+      document.getElementById('navDistance').textContent = `Point clé #${idx + 1} – ${esc(wp.title)}`;
       document.getElementById('navInstruction').textContent = wp.voice;
       speakInstruction(wp.voice, true);
     };
@@ -1156,8 +1161,8 @@
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:1.2rem;">${getBannerIcon(wp.type)}</span>
               <div>
-                <div style="font-weight:700;">${i + 1}. ${wp.title}</div>
-                <div style="font-size:0.77rem;color:var(--text-muted);">« ${wp.voice} »</div>
+                <div style="font-weight:700;">${i + 1}. ${esc(wp.title)}</div>
+                <div style="font-size:0.77rem;color:var(--text-muted);">« ${esc(wp.voice)} »</div>
               </div>
             </div>
             <span style="font-size:0.78rem;color:var(--primary-light);font-weight:700;">🔊 Tester</span>
@@ -1191,9 +1196,9 @@
             distFromUserHtml = `<span>📍 à ${dKm} km de vous</span>`;
           }
           return `
-            <div class="circuit-card ${isSelected ? 'selected' : ''}" onclick="window.selectCircuitById('${c.id}')">
+            <div class="circuit-card ${isSelected ? 'selected' : ''}" data-circuit-id="${esc(c.id)}" onclick="window.selectCircuitById(this.dataset.circuitId)">
               <div class="circuit-card-header">
-                <div class="circuit-title">#${c.page} – ${c.name}</div>
+                <div class="circuit-title">#${Number(c.page)} – ${esc(c.name)}</div>
                 ${
                   c.hasFullTrack
                     ? `<span class="badge badge-gps">✓ GPS + Voix</span>`
@@ -1201,11 +1206,11 @@
                 }
               </div>
               <div class="circuit-meta">
-                <span>📏 <b>${c.distanceKm.toString().replace('.', ',')} km</b></span>
-                <span>⏱️ ${c.duration}</span>
+                <span>📏 <b>${String(Number(c.distanceKm)).replace('.', ',')} km</b></span>
+                <span>⏱️ ${esc(c.duration)}</span>
                 ${distFromUserHtml}
               </div>
-              <div style="font-size:0.76rem;color:#cbd5e1;">Départ : ${c.startName}</div>
+              <div style="font-size:0.76rem;color:#cbd5e1;">Départ : ${esc(c.startName)}</div>
             </div>
           `;
         })
@@ -1773,10 +1778,10 @@
         .join('\n');
       const gpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Guide Marche Nordique Sologne" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata><name>${c.name}</name></metadata>
+  <metadata><name>${esc(c.name)}</name></metadata>
 ${wpsXml}
   <trk>
-    <name>${c.name}</name>
+    <name>${esc(c.name)}</name>
     <trkseg>
 ${trkXml}
     </trkseg>
