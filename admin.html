@@ -25,7 +25,7 @@
     .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
     .row > * { flex:0 0 auto; }
     .hidden { display:none !important; }
-    #login { max-width:340px; margin:12vh auto; padding:20px; background:var(--panel); border-radius:10px; }
+    #login, #pwChange { max-width:340px; margin:12vh auto; padding:20px; background:var(--panel); border-radius:10px; }
     #app { display:grid; grid-template-columns:340px 1fr 360px; height:100%; }
     #left, #right { overflow:auto; padding:12px; background:var(--panel); }
     #left { border-right:1px solid var(--line); }
@@ -59,6 +59,18 @@
     <p id="loginErr" style="color:#f87171"></p>
   </div>
 
+  <!-- Premier accès avec un mot de passe provisoire : choix du mot de passe personnel -->
+  <div id="pwChange" class="hidden">
+    <h1>🔑 Choisis ton mot de passe</h1>
+    <p style="color:var(--muted)">Tu t'es connecté avec un mot de passe provisoire. Choisis-en un personnel pour continuer.</p>
+    <label for="newPw1">Nouveau mot de passe (8 caractères minimum)</label>
+    <input id="newPw1" type="password" autocomplete="new-password" />
+    <label for="newPw2">Confirmer</label>
+    <input id="newPw2" type="password" autocomplete="new-password" />
+    <div class="row" style="margin-top:12px"><button class="primary" id="btnPwSave">Enregistrer et continuer</button></div>
+    <p id="pwErr" style="color:#f87171"></p>
+  </div>
+
   <div id="app" class="hidden">
     <!-- Liste -->
     <aside id="left">
@@ -69,6 +81,21 @@
       <div class="row" style="margin-top:8px">
         <button class="primary" id="btnNew">➕ Nouvelle marche (GPX)</button>
         <input id="newGpx" type="file" accept=".gpx" class="hidden" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnAdminToggle">👤 Ajouter un admin</button>
+      </div>
+      <div id="adminBox" class="hidden">
+        <h2>Nouvel administrateur</h2>
+        <label for="adminEmail">E-mail</label>
+        <input id="adminEmail" type="email" autocomplete="off" />
+        <label for="adminPw">Mot de passe provisoire</label>
+        <div class="row">
+          <input id="adminPw" type="text" autocomplete="off" spellcheck="false" />
+          <button id="btnAdminGen" type="button">Générer</button>
+        </div>
+        <p style="color:var(--muted)">À transmettre à la personne : elle devra en choisir un autre à sa première connexion.</p>
+        <div class="row"><button class="primary" id="btnAdminCreate">Créer le compte</button></div>
       </div>
       <input id="search" type="text" placeholder="Rechercher…" style="margin-top:8px" />
       <div id="list"></div>
@@ -573,11 +600,52 @@
         $('loginErr').textContent = 'Ce compte n\'est pas autorisé à modifier les circuits.';
         return;
       }
+      // Mot de passe provisoire : on impose d'en choisir un personnel avant d'entrer.
+      if (session.user.user_metadata && session.user.user_metadata.must_change_password) {
+        $('login').classList.add('hidden');
+        $('pwChange').classList.remove('hidden');
+        return;
+      }
       $('login').classList.add('hidden');
+      $('pwChange').classList.add('hidden');
       $('app').classList.remove('hidden');
       map.invalidateSize();
       await loadRows();
     }
+    $('btnPwSave').onclick = async () => {
+      $('pwErr').textContent = '';
+      const pw = $('newPw1').value;
+      if (pw.length < 8) { $('pwErr').textContent = '8 caractères minimum.'; return; }
+      if (pw !== $('newPw2').value) { $('pwErr').textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+      const { data, error } = await sb.auth.updateUser({ password: pw, data: { must_change_password: false } });
+      if (error) { $('pwErr').textContent = 'Échec : ' + error.message; return; }
+      const { data: s } = await sb.auth.getSession();
+      enter(s.session || { user: data.user });
+    };
+    $('newPw2').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnPwSave').click(); });
+
+    // ---------- Ajout d'un administrateur (fonction Edge mn-create-admin) ----------
+    $('btnAdminToggle').onclick = () => $('adminBox').classList.toggle('hidden');
+    $('btnAdminGen').onclick = () => {
+      const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const bytes = crypto.getRandomValues(new Uint8Array(12));
+      $('adminPw').value = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+    };
+    $('btnAdminCreate').onclick = async () => {
+      const email = $('adminEmail').value.trim();
+      const password = $('adminPw').value;
+      if (!email || password.length < 8) return toast('E-mail et mot de passe provisoire (8 car. min.) requis.', true);
+      const { error } = await sb.functions.invoke('mn-create-admin', { body: { email, password } });
+      if (error) {
+        let detail = error.message;
+        try { detail = (await error.context.json()).error || detail; } catch (e) {}
+        return toast('Échec : ' + detail, true);
+      }
+      toast(`Compte créé pour ${email}. Transmets-lui le mot de passe provisoire.`);
+      $('adminEmail').value = '';
+      $('adminPw').value = '';
+      $('adminBox').classList.add('hidden');
+    };
     $('btnLogin').onclick = async () => {
       $('loginErr').textContent = '';
       const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
